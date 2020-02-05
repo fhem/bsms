@@ -1,16 +1,10 @@
 package main;
 use strict;
 use warnings;
-#use JSON::API;
-#use JSON;
 use HTTP::Request ();
 use JSON;
-use Data::Dumper;
-use JSON::XS;
 use LWP::UserAgent;
 use DateTime::Format::Strptime qw(strptime);
-#use Time::ParseDate;
-use DateTime;
 
 my $ua = LWP::UserAgent->new;
 $ua->agent("MyApp/0.1");
@@ -30,16 +24,12 @@ sub bsms_setreading($);
 
 my %bsms_sets =
 (
-  "Testalarm"	=> "textField",
+  "Testalarm"					=> "textField",
   "sessionid"					=> "textField",
  
 );
 		
-#my %bsms_gets = (
-#	"devices"	=> "",
-#	"state"	=> "active:inactiv"
-	
-#);
+
 
 
 
@@ -51,25 +41,15 @@ sub bsms_Initialize($) {
     $hash->{UndefFn}    = 'bsms_Undef';
     $hash->{SetFn}      = 'bsms_Set';
   	$hash->{NotifyFn}   = "bsms_Notify";
-  	#$hash->{DeleteFn}   = "bsms_Delete";
-   # $hash->{GetFn}      = 'bsms_Get';
-    $hash->{AttrFn}     = 'bsms_Attr';
+  	$hash->{AttrFn}     = 'bsms_Attr';
     $hash->{ReadFn}     = 'bsms_Read';
-   # $hash->{Interval}   =  36;
 
     $hash->{AttrList} =
     	"msisdn/Tel ".
     	"Intervall ".
     	"Alarmdauer "
     	. $readingFnAttributes;
-     #     #"formal:yes,no ",
-     #     "devices:1,2,3,4 ".
-     #     "formel ""Intervall"){
-		#			our $hash->{intervall} = $attr_value;
-			#		return undef;
-		#		}
-			#	elsif($attr_name eq "Alarmdauer"){
-       #   . $readingFnAttributes;
+     
         
         
 }
@@ -88,7 +68,6 @@ sub bsms_Define($$) {
     $hash->{customer_id} = $param[2];
     $hash->{username} = $param[3];
     $hash->{password} = $param[4];
-   # $hash->{poll} = $param[5];
     $hash->{STATE} = "active";
 
     return main($hash);
@@ -99,26 +78,21 @@ sub bsms_Define($$) {
 sub get_session($) {
 	my ($hash) = @_;
 	my $name = $hash->{NAME};
-	Log3 $name, 3, "X ($name) - get session";
-
-my $url = "https://api.blaulichtsms.net/blaulicht/api/alarm/v1/dashboard/login";
-my $header= [ 'Content-Type' => 'application/json'];
-
-my $content = {   
+	Log3 $name, 3, "($name) - get session";
+	my $url = "https://api.blaulichtsms.net/blaulicht/api/alarm/v1/dashboard/login";
+	my $header= [ 'Content-Type' => 'application/json'];
+	my $content = {   
 	
 		"customerId" => $hash->{customer_id},
     "username" => $hash->{username},
     "password" => $hash->{password},
     
   };
-  
-my $jcontent = JSON->new->utf8->encode($content);
-
-my $req = HTTP::Request->new('POST', $url, $header , $jcontent);
-
-# Pass request to the user agent and get a response back
-my $res = $ua->request($req);
-###
+  my $jcontent = JSON->new->utf8->encode($content);
+	my $req = HTTP::Request->new('POST', $url, $header , $jcontent);
+	
+	# Pass request to the user agent and get a response back
+	my $res = $ua->request($req);
 
 	if ($res->is_success) {
 
@@ -127,11 +101,15 @@ my $res = $ua->request($req);
 			my $obj = $fromjson->{"sessionId"};
 			setreading($hash, "sessionID", $obj);
 			$hash->{session_id} = $obj;
+			Log3 $name, 3, "$name: - successful session -- ID = $obj";
+
 			return 1;
 	}else {
-		setreading($hash, "session", $res->status_line);
-		set_state($hash, "Error Login");
-		return undef;
+	
+			my $errmsg = $res->status_line;
+			Log3 $name, 3, "$name: - Error Login: $errmsg";
+			set_state($hash, "Error Login");
+			return undef;
 	}
 
  	return undef ;
@@ -139,67 +117,50 @@ my $res = $ua->request($req);
 
 sub convert_time($){
 	my ($obj) = @_;
-	my $name = "BSMS";
-	Log3 $name, 3, "X ($name) - convert Time";
-
-	 my $timepattern = '%Y-%m-%dT%H:%M:%S.%NZ';
-   my $Strp = DateTime::Format::Strptime->new(
-    pattern   => $timepattern,
+	my $timepattern = '%Y-%m-%dT%H:%M:%S.%NZ';
+	my $Strp = DateTime::Format::Strptime->new(
+		pattern   => $timepattern,
     locale    => 'de_DE',
     time_zone => 'UTC',
 	);
-
 	my $alarmtime = $Strp->parse_datetime($obj);
 	my $tsalarm = $alarmtime->epoch;
 
-	
-	return $tsalarm;
-	
+	return $tsalarm;	
 }
 
 sub get_alarms($){
 	my ($hash) = @_;
+	
 	my $name = $hash->{NAME};
-	Log3 $name, 3, "X ($name) - get alarms";
+	my $sessionnotnull = $hash->{session_id};
+	unless ($sessionnotnull) { get_session($hash);}
 	my $session = $hash->{session_id};
+	my $url = "https://api.blaulichtsms.net/blaulicht/api/alarm/v1/dashboard/".$session;
+	my $req = HTTP::Request->new('GET', $url);
+	# Pass request to the user agent and get a response back
+	my $res = $ua->request($req);
 	
-	unless ($session) { get_session($hash);}
+	# Check the outcome of the response
 	
+	if ($res->is_success) {
+		#setreading($hash, "Info", $res->content);
+		my $content = $res->content;
+		Log3 $name, 4, "$name: - content = $content";
+		my $message = $res->decoded_content;
+		my $fromjson = from_json($message);
+		our $alarms =$fromjson;
 	
-	
-		my $url = "https://api.blaulichtsms.net/blaulicht/api/alarm/v1/dashboard/$session";
-
-
-		my $req = HTTP::Request->new('GET', $url);
-
-		# Pass request to the user agent and get a response back
-		my $res = $ua->request($req);
-
-		# Check the outcome of the response
-		if ($res->is_success) {
-			setreading($hash, "Info", $res->content);
+	} else {
 			
-				
+		my $errmsg = $res->status_line;
+		Log3 $name, 3, "$name: - Error session $errmsg";
+		set_state($hash, "Error session");
+		get_session($hash);		
 			
+	}
 
-			my $message = $res->decoded_content;
-
-			my $fromjson = from_json($message);
-	
-		#	my $obj = $fromjson->{"alarms"}[0]{"alarmDate"};
-	
-			our $alarms =$fromjson;
-	
-			
-  
-		} else {
-			set_state($hash, "error session");
-			get_session($hash);
-			setreading($hash, "Info", $res->status_line);
-			
-		}
-
-		return  1;
+	return  1;
 		
 	
 }
@@ -207,12 +168,12 @@ sub get_alarms($){
 sub is_alarm($){
 	my ($hash) = @_;
 	my $name = $hash->{NAME};
-	Log3 $name, 3, "X ($name) - is Alarms";
 	my $duration = 3600;
 	
 	if($hash->{alarmdauer} > 0 ) {
      $duration = $hash->{alarmdauer};
 	}
+	
 	my $alarms = get_alarms($hash);
 	my $dt = DateTime->now;
 	my $tslocal = $dt->epoch;
@@ -220,7 +181,6 @@ sub is_alarm($){
 	my $txt = our $alarms->{"alarms"}[0]{"alarmText"};
 	my $time_lastalarm = convert_time($obj) ;
 	my $timelastoffset = $time_lastalarm + $duration;
-	
 	my $dtt = DateTime->from_epoch( epoch => $time_lastalarm );
 	$dtt->set_time_zone( "Europe/Berlin" );
 	my $ymd    = $dtt->ymd('.'); # 1974.11.30 - also 'date'
@@ -232,20 +192,20 @@ sub is_alarm($){
 	
 	unless ($alarms) { return undef;}
 	
-	
 	setreading($hash, "letzte_Alarm", $timestr);
-	#setreading($hash, "duration", $timelastoffset);
 	setreading($hash, "Meldetext", $txt);
 	
-	
 	if($timelastoffset >= $tslocal or our $testalarm == 1){
+		
 		setreading($hash, "Alarm", "Alarm");
 		set_state($hash, "Alarm");
 		return 1;
 			
 	}else{
+		
 		setreading($hash, "Alarm", "kein Alarm");
 		set_state($hash, "running");
+		
 		return undef;
 	}
 	
@@ -256,11 +216,6 @@ sub set_state($$) {
 	my ($hash, $value) = @_;
 	$hash->{STATE} = $value;
 	return 1;
-}
-
-sub set_error($$) {
-	my ($hash, $value) = @_;
-	
 }
 
 
@@ -299,33 +254,18 @@ sub getreading($$$) {
 
 sub bsms_Undef($$) {
     my ($hash, $arg) = @_; 
-    # nothing to do
+    
+    RemoveInternalTimer($hash);
+    
     return undef;
 }
 
-#sub bsms_Get($@) {
-#	my ($hash, @param) = @_;
-#	return '"get bsms" needs at least one argument' if (int(@param) < 2);
-#	
-#	my $name = shift @param;
-#	my $opt = shift @param;
-#	if(!$bsms_sets{$opt}) {
-#		my @cList = keys %bsms_sets;
-#		return "Unknown argument $opt, choose one of " . join(" ", @cList);
-#	}
-
-#	return $bsms_sets{$opt};
-#}
-
-sub bsms_Notify($$)
-{
+sub bsms_Notify($$){
   my ($own_hash, $dev_hash) = @_;
+  
   my $ownName = $own_hash->{NAME}; # own name / hash
-
-  return "" if(IsDisabled($ownName)); # Return without any further action if the module is disabled
-
+	return "" if(IsDisabled($ownName)); # Return without any further action if the module is disabled
   my $devName = $dev_hash->{NAME}; # Device that created the events
-
   my $events = deviceEvents($dev_hash,1);
   return if( !$events );
 
@@ -341,20 +281,11 @@ sub bsms_Notify($$)
   }
 }
 
-#sub bsms_Delete($$)    
-#{                     
-#	my ( $hash, $name ) = @_;       
-##	# Löschen von Geräte-assoziiertem Temp-File
-#unlink($attr{global}{modpath}."/FHEM/FhemUtils/$name.tmp";);
-#
-#	return undef;
-#}
 
 sub bsms_Set($@) {
 	my ($hash, @param) = @_;
 	
 	return '"set bsms" needs at least one argument' if (int(@param) < 2);
-	
 	my $name = shift @param;
 	my $opt = shift @param;
 	my $value = join("", @param);
@@ -373,30 +304,22 @@ sub bsms_Set($@) {
 		}
 		elsif($value eq "off")
 		{
-	   our $testalarm = 0;
-	   return undef;
+	   	our $testalarm = 0;
+	   	return undef;
 		}
 	}
+	
 	if($opt eq "sessionid") 
 	{	  
 		$hash->{session_id} = $value;
 		return undef;	
 	}
 	
-	
-    #$hash->{STATE} = $bsms_gets{$opt} = $value;
-   # start($hash);
-    #readingsBeginUpdate($hash);
-	#readingsBulkUpdate( $hash, "Test", "reading ok" );
-	#readingsEndUpdate( $hash, 1 );
-
-	#return "$opt set to $value. Try to get it.";
 }
 
 
 sub bsms_Attr(@) {
 	my ($cmd,$name,$attr_name,$attr_value) = @_;
-	#my @devices =  split(/\,/,$hash->{devices});
 	if($cmd eq "set") {
         if($attr_name eq "msisdn/Tel") {
         	our $hash->{msisdn} = $attr_value;
@@ -425,12 +348,9 @@ sub bsms_Attr(@) {
 					our $hash->{alarmdauer} = "";
 					return undef;
 				}
-				#else 
-				#{
-		    #	return "Unknown attr $attr_name";
-				#}
 				
 	}
+	
 	return undef;
 }
 
