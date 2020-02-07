@@ -1,6 +1,6 @@
 package main;
-use strict;
-use warnings;
+#use strict;
+#use warnings;
 use HTTP::Request ();
 use JSON;
 use LWP::UserAgent;
@@ -25,7 +25,7 @@ sub bsms_setreading($);
 my %bsms_sets =
 (
   "Testalarm"					=> "textField",
-  "sessionid"					=> "textField",
+#  "sessionid"					=> "textField",
  
 );
 		
@@ -45,7 +45,7 @@ sub bsms_Initialize($) {
     $hash->{ReadFn}     = 'bsms_Read';
 
     $hash->{AttrList} =
-    	"msisdn/Tel ".
+    	#"msisdn/Tel ".
     	"Intervall ".
     	"Alarmdauer "
     	. $readingFnAttributes;
@@ -321,11 +321,11 @@ sub bsms_Set($@) {
 sub bsms_Attr(@) {
 	my ($cmd,$name,$attr_name,$attr_value) = @_;
 	if($cmd eq "set") {
-        if($attr_name eq "msisdn/Tel") {
-        	our $hash->{msisdn} = $attr_value;
-        	return undef; 	
-				}
-				elsif($attr_name eq "Intervall"){
+      #  if($attr_name eq "msisdn/Tel") {
+      #  	our $hash->{msisdn} = $attr_value;
+      # 	return undef; 	
+			#	}
+				if($attr_name eq "Intervall"){
 					our $hash->{intervall} = $attr_value;
 					return undef;
 				}
@@ -336,11 +336,11 @@ sub bsms_Attr(@) {
 				
 				
 	}elsif($cmd eq "del") {
-        if($attr_name eq "msisdn/Tel") {
-        	our $hash->{msisdn} = "";
-        	return undef; 	
-				}
-				elsif($attr_name eq "Intervall"){
+        #if($attr_name eq "msisdn/Tel") {
+        #	our $hash->{msisdn} = "";
+        #	return undef; 	
+				#}
+				if($attr_name eq "Intervall"){
 					our $hash->{intervall} = "";
 					return undef;
 				}
