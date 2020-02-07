@@ -1,3 +1,8 @@
+Es muss zusätzlich noch das Paket libdatetime-format-strptime-perl installiert werden mit:
+
+    sudo apt install libdatetime-format-strptime-perl
+
+
 # fhembsms
 bsms Fhem Modul für die Dashboard API von Blaulichtsms. Um dieses Modul zu benutzen muss deine Organisation Blaulichtsms nutzen. Siehe Blaulichtsms für mehr informationen. 
 
