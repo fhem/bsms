@@ -8,7 +8,7 @@ use DateTime::Format::Strptime qw(strptime);
 
 my $ua = LWP::UserAgent->new;
 $ua->agent("MyApp/0.1");
-
+sub bsms_setr($$$);
 
 
 ####GLOBAL###
@@ -19,8 +19,6 @@ $ua->agent("MyApp/0.1");
 	our $hash;
 	
 }
-
-sub bsms_setreading($);
 
 my %bsms_sets =
 (
@@ -70,12 +68,12 @@ sub bsms_Define($$) {
     $hash->{password} = $param[4];
     $hash->{STATE} = "active";
 
-    return main($hash);
+    return bsms_main($hash);
 }
 
 
 
-sub get_session($) {
+sub bsms_get_session($) {
 	my ($hash) = @_;
 	my $name = $hash->{NAME};
 	Log3 $name, 3, "($name) - get session";
@@ -99,7 +97,7 @@ sub get_session($) {
 			my $message = $res->decoded_content;
 			my $fromjson = from_json($message);
 			my $obj = $fromjson->{"sessionId"};
-			setreading($hash, "sessionID", $obj);
+			bsms_setr($hash, "sessionID", $obj);
 			$hash->{session_id} = $obj;
 			Log3 $name, 3, "$name: - successful session -- ID = $obj";
 
@@ -108,14 +106,14 @@ sub get_session($) {
 	
 			my $errmsg = $res->status_line;
 			Log3 $name, 3, "$name: - Error Login: $errmsg";
-			set_state($hash, "Error Login");
+			bsms_set_state($hash, "Error Login");
 			return undef;
 	}
 
  	return undef ;
 }
 
-sub convert_time($){
+sub bsms_convert_time($){
 	my ($obj) = @_;
 	my $timepattern = '%Y-%m-%dT%H:%M:%S.%NZ';
 	my $Strp = DateTime::Format::Strptime->new(
@@ -129,12 +127,12 @@ sub convert_time($){
 	return $tsalarm;	
 }
 
-sub get_alarms($){
+sub bsms_get_alarms($){
 	my ($hash) = @_;
 	
 	my $name = $hash->{NAME};
 	my $sessionnotnull = $hash->{session_id};
-	unless ($sessionnotnull) { get_session($hash);}
+	unless ($sessionnotnull) { bsms_get_session($hash);}
 	my $session = $hash->{session_id};
 	my $url = "https://api.blaulichtsms.net/blaulicht/api/alarm/v1/dashboard/".$session;
 	my $req = HTTP::Request->new('GET', $url);
@@ -155,8 +153,8 @@ sub get_alarms($){
 			
 		my $errmsg = $res->status_line;
 		Log3 $name, 3, "$name: - Error session $errmsg";
-		set_state($hash, "Error session");
-		get_session($hash);		
+		bsms_set_state($hash, "Error session");
+		bsms_get_session($hash);		
 			
 	}
 
@@ -165,7 +163,7 @@ sub get_alarms($){
 	
 }
 
-sub is_alarm($){
+sub bsms_is_alarm($){
 	my ($hash) = @_;
 	my $name = $hash->{NAME};
 	my $duration = 3600;
@@ -174,12 +172,12 @@ sub is_alarm($){
      $duration = $hash->{alarmdauer};
 	}
 	
-	my $alarms = get_alarms($hash);
+	my $alarms = bsms_get_alarms($hash);
 	my $dt = DateTime->now;
 	my $tslocal = $dt->epoch;
 	my $obj = our $alarms->{"alarms"}[0]{"alarmDate"};
 	my $txt = our $alarms->{"alarms"}[0]{"alarmText"};
-	my $time_lastalarm = convert_time($obj) ;
+	my $time_lastalarm = bsms_convert_time($obj) ;
 	my $timelastoffset = $time_lastalarm + $duration;
 	my $dtt = DateTime->from_epoch( epoch => $time_lastalarm );
 	$dtt->set_time_zone( "Europe/Berlin" );
@@ -191,20 +189,20 @@ sub is_alarm($){
 	my $timestr = "$d.$m.$y $hms";
 	
 	unless ($alarms) { return undef;}
-	
-	setreading($hash, "letzte_Alarm", $timestr);
-	setreading($hash, "Meldetext", $txt);
+
+	bsms_setr($hash, "letzte_Alarm", $timestr);
+	bsms_setr($hash, "Meldetext", $txt);
 	
 	if($timelastoffset >= $tslocal or our $testalarm == 1){
 		
-		setreading($hash, "Alarm", "Alarm");
-		set_state($hash, "Alarm");
+		bsms_setr($hash, 'Alarm', 'Alarm');
+		bsms_set_state($hash, "Alarm");
 		return 1;
 			
 	}else{
 		
-		setreading($hash, "Alarm", "kein Alarm");
-		set_state($hash, "running");
+		bsms_setr($hash, "Alarm", "kein Alarm");
+		bsms_set_state($hash, "running");
 		
 		return undef;
 	}
@@ -212,43 +210,41 @@ sub is_alarm($){
 }
 
 
-sub set_state($$) {
+sub bsms_set_state($$) {
 	my ($hash, $value) = @_;
 	$hash->{STATE} = $value;
 	return 1;
 }
 
 
-sub main($) {
+sub bsms_main($) {
 	my ($hash) = @_;
 	my $intervall = 30;
 	if( $hash->{intervall} > 0 ) {
      $intervall = $hash->{intervall};
 	}
 	my $timer = gettimeofday() + $intervall;
-	my $start ="main";
+	my $start ="bsms_main";
 	
-	get_alarms($hash);
-	is_alarm($hash);
+	bsms_get_alarms($hash);
+	bsms_is_alarm($hash);
 	our $hash = $hash;
 	
 	RemoveInternalTimer($hash);
   InternalTimer($timer, $start, $hash,0);
 }
 
-sub setreading($$$) {
+sub bsms_setr ($$$) {
 	my ($hash, $reading, $value) = @_;
+	
 	readingsBeginUpdate($hash);
-	readingsBulkUpdate( $hash, $reading, $value );
+	readingsBulkUpdate($hash, $reading, $value);
 	readingsEndUpdate( $hash, 1 );
+	
+	return 1;
 }
 
-sub getreading($$$) {	 
-	my ($device, $reading, $hash) = @_;
-	my $result = ReadingsVal($device, $reading, "");
 
-	return $result
-}
 
 
 
