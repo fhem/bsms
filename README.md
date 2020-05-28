@@ -18,7 +18,7 @@ Set
 
     set <name> <option> <value>
 
-    You can set folgende set befehle gibt es.
+    folgende set befehle gibt es.
 
     Options:
         Testalarm on|off
@@ -31,6 +31,6 @@ Attributes
 
     Attributes:
         Alarmdauer
-        Die Dauer eines Alarms in Sekunden Default is "3600".
+        Die Dauer eines Alarms in Sekunden Default ist "3600".
         Intervall
         Der Abfrage Intervall von der Blaulichtsms API. Default is "10".
